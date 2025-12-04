@@ -19,12 +19,20 @@ export default function Camera({ onBack, onDetectNumber }) {
           return;
         }
 
+        // ============================
+        //  📌 AUMENTO DE ZOOM REAL
+        // ============================
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
+          video: {
+            facingMode: { ideal: "environment" },
+            zoom: { ideal: 2 },     // tenta zoom real de hardware
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
           audio: false,
         });
 
-        // fallback caso a câmera traseira não exista
+        // fallback se não suportar zoom
         if (!stream) {
           stream = await navigator.mediaDevices.getUserMedia({
             video: true,
@@ -34,23 +42,28 @@ export default function Camera({ onBack, onDetectNumber }) {
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+
+          // ============================
+          //  📌 ZOOM DIGITAL EXTRA
+          // ============================
+          videoRef.current.style.transform = "scale(1.4)";
+          videoRef.current.style.transformOrigin = "center center";
+
           await videoRef.current.play();
         }
 
         setError("");
-        startOCRLoop(); // inicia OCR contínuo
+        startOCRLoop(); 
       } catch (err) {
         console.error("Erro ao acessar câmera:", err);
 
-        if (err.name === "NotAllowedError") {
+        if (err.name === "NotAllowedError")
           setError("Permissão negada. Ative o acesso à câmera.");
-        } else if (err.name === "NotFoundError") {
+        else if (err.name === "NotFoundError")
           setError("Nenhuma câmera encontrada neste dispositivo.");
-        } else if (err.name === "NotReadableError") {
+        else if (err.name === "NotReadableError")
           setError("A câmera está sendo usada por outro aplicativo.");
-        } else {
-          setError("Não foi possível acessar a câmera.");
-        }
+        else setError("Não foi possível acessar a câmera.");
       }
     }
 
@@ -62,25 +75,45 @@ export default function Camera({ onBack, onDetectNumber }) {
     };
   }, []);
 
-  // ============================================
-  // 🔍 LOOP DE OCR — CAPTURA FRAMES E ANALISA
-  // ============================================
-
+  // ====================================================
+  // 🔍 OCR LOOP — agora pegando somente a PARTE CENTRAL
+  // ====================================================
   function startOCRLoop() {
     if (scanning) return;
     setScanning(true);
 
     const interval = setInterval(async () => {
-      if (!videoRef.current || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
       const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas) return;
 
-      const w = (canvas.width = video.videoWidth);
-      const h = (canvas.height = video.videoHeight);
+      const fullW = video.videoWidth;
+      const fullH = video.videoHeight;
+
+      if (fullW === 0 || fullH === 0) return;
 
       const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, w, h);
+
+      // 🟦 RECORTE CENTRAL (aumenta precisão)
+      const cropW = fullW * 0.6;
+      const cropH = fullH * 0.35;
+      const cropX = (fullW - cropW) / 2;
+      const cropY = (fullH - cropH) / 2;
+
+      canvas.width = cropW;
+      canvas.height = cropH;
+
+      ctx.drawImage(
+        video,
+        cropX,
+        cropY,
+        cropW,
+        cropH,
+        0,
+        0,
+        cropW,
+        cropH
+      );
 
       try {
         const result = await Tesseract.recognize(canvas, "eng", {
@@ -89,12 +122,11 @@ export default function Camera({ onBack, onDetectNumber }) {
 
         const text = result.data.text;
 
-        // REGEX para extrair telefones brasileiros e internacionais
         const match = text.match(
           /(\+?\d{1,3}[\s-]?)?(\(?\d{2,3}\)?[\s-]?)?(\d{4,5}[\s-]?\d{4})/g
         );
 
-        if (match && match.length > 0) {
+        if (match?.length > 0) {
           const clean = match[0].replace(/\s+/g, " ").trim();
 
           if (clean !== lastDetected) {
@@ -105,35 +137,31 @@ export default function Camera({ onBack, onDetectNumber }) {
       } catch (err) {
         console.log("OCR falhou:", err);
       }
-    }, 600); // roda a cada 0.6s
+    }, 450); // 🔥 mais rápido e mais preciso
 
     return () => clearInterval(interval);
   }
 
-  // ============================================
-  // RENDER DA INTERFACE
-  // ============================================
-
+  // ====================================================
+  // RENDER
+  // ====================================================
   return (
     <div className="v-camera-root">
       <div className="v-camera-header">
         <div>
           <div className="v-camera-title">MODO SCANNER • VisionlinkIA</div>
           <p className="v-camera-sub">
-            Aponte a câmera para números de telefone. A IA identifica e envia
-            automaticamente para WhatsApp em segundos.
+            Aponte a câmera para números de telefone. A IA detecta e envia para
+            a interface principal em tempo real.
           </p>
         </div>
 
         <div className="v-camera-actions">
-          <button className="v-btn-ghost" onClick={onBack}>
-            ⬅ voltar
-          </button>
+          <button className="v-btn-ghost" onClick={onBack}>⬅ voltar</button>
           <div className="v-camera-chip">beta público • v1.0</div>
         </div>
       </div>
 
-      {/* VIDEO */}
       <div className="v-camera-shell">
         <div className="v-camera-inner">
           <div className="v-camera-video-frame">
@@ -142,13 +170,12 @@ export default function Camera({ onBack, onDetectNumber }) {
 
             <video ref={videoRef} playsInline muted />
 
-            {/* canvas invisível — usado pelo OCR */}
             <canvas ref={canvasRef} style={{ display: "none" }} />
 
             {error && (
               <div className="v-camera-placeholder">
                 <span>⚠ {error}</span>
-                <span>Ative a câmera no navegador e recarregue.</span>
+                <span>Ative o acesso à câmera e recarregue.</span>
               </div>
             )}
           </div>

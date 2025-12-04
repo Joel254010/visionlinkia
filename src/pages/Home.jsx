@@ -1,31 +1,37 @@
 import { useEffect, useState } from "react";
 
 export default function Home({ onStartScan, detectedNumber }) {
-  const [number, setNumber] = useState("+55 13 98107 1907"); 
+  const [number, setNumber] = useState("+55 13 98107 1907");
   const [status, setStatus] = useState("aguardando leitura…");
   const [whatsLink, setWhatsLink] = useState("");
-  const [lastOpened, setLastOpened] = useState(""); // evita abrir várias vezes
+  const [lastOpened, setLastOpened] = useState("");
 
-  // Atualização quando o OCR envia um número REAL
+  // ======================================================
+  // 🔥 PROCESSA NÚMERO DETECTADO PELO OCR EM TEMPO REAL
+  // ======================================================
   useEffect(() => {
-    if (detectedNumber && detectedNumber.length >= 8) {
-      setNumber(detectedNumber);
-      setStatus("pronto para conectar");
+    if (!detectedNumber) return;
 
-      // Limpa caracteres que o WhatsApp não aceita
-      const cleaned = detectedNumber.replace(/\D/g, "");
-      const link = `https://wa.me/${cleaned}`;
-      setWhatsLink(link);
+    const cleaned = detectedNumber.replace(/\D/g, "");
 
-      // Evita abrir WhatsApp mais de uma vez para o mesmo número
-      if (cleaned !== lastOpened) {
-        setLastOpened(cleaned);
+    // Ignora se vier sujeira ou número muito curto
+    if (cleaned.length < 8) return;
 
-        // Delay curto para garantir que a UI atualize antes de abrir
-        setTimeout(() => {
-          window.open(link, "_blank");
-        }, 600);
-      }
+    // Atualiza interface
+    setNumber(detectedNumber);
+    setStatus("pronto para conectar");
+
+    const link = `https://wa.me/${cleaned}`;
+    setWhatsLink(link);
+
+    // Evita abrir várias vezes para o mesmo número
+    if (cleaned !== lastOpened) {
+      setLastOpened(cleaned);
+
+      // Delay suave para animação + atualização de UI
+      setTimeout(() => {
+        window.open(link, "_blank");
+      }, 600);
     }
   }, [detectedNumber]);
 
@@ -33,9 +39,9 @@ export default function Home({ onStartScan, detectedNumber }) {
     <main className="v-main">
       <div className="v-main-inner">
 
-        {/* =============================== */}
-        {/* HERO PRINCIPAL */}
-        {/* =============================== */}
+        {/* =============================================== */}
+        {/*                HERO PRINCIPAL                  */}
+        {/* =============================================== */}
         <section className="v-hero">
 
           <div className="v-hero-eyebrow">plataforma global • visionlinkia</div>
@@ -77,14 +83,16 @@ export default function Home({ onStartScan, detectedNumber }) {
             <div className="v-badge-chip">Conexão instantânea via IA</div>
             <div className="v-badge-chip">Pronto para virar super-app mobile</div>
           </div>
+
         </section>
 
-        {/* =============================== */}
-        {/* VISOR SCANNER — DINÂMICO */}
-        {/* =============================== */}
+        {/* =============================================== */}
+        {/*            VISOR SCANNER — DINÂMICO            */}
+        {/* =============================================== */}
         <section className="v-hero-scanner">
           <div className="v-hero-scanner-inner">
             <div className="v-scanner-frame">
+
               <div className="v-scanner-grid" />
               <div className="v-scanner-line" />
 
@@ -106,7 +114,7 @@ export default function Home({ onStartScan, detectedNumber }) {
                   <div className="v-scanner-chip">modo demonstração • v1.0</div>
                 </div>
 
-                {/* BOTÃO MANUAL PARA WHATSAPP (mantido) */}
+                {/* BOTÃO OPCIONAL (clicável manualmente) */}
                 {whatsLink && (
                   <a
                     className="v-btn-primary"
@@ -118,70 +126,72 @@ export default function Home({ onStartScan, detectedNumber }) {
                     💬 abrir conversa no whatsapp
                   </a>
                 )}
+
               </div>
+
             </div>
           </div>
         </section>
 
       </div>
 
-      {/* =============================== */}
-      {/*   SESSÕES INFORMATIVAS */}
-      {/* =============================== */}
+      {/* =============================================== */}
+      {/*                 SESSÕES INFORMATIVAS            */}
+      {/* =============================================== */}
 
       <section className="v-extra-section">
         <div className="v-extra-title">Por que a VisionlinkIA é tão inovadora?</div>
+
         <p className="v-extra-sub">
-          A tecnologia embarcada na VisionlinkIA não é apenas inteligente —
-          ela redefine a forma como humanos se conectam a partir do mundo físico.
+          A tecnologia embarcada na VisionlinkIA redefine como humanos se conectam
+          a partir do mundo físico.
         </p>
 
         <div className="v-extra-grid">
           <div className="v-extra-card">
             <h3>📡 Leitura instantânea</h3>
-            <p>A IA identifica números em outdoors, cartões, telas, embalagens, veículos…</p>
+            <p>A IA identifica números em superfícies físicas e digitais.</p>
           </div>
 
           <div className="v-extra-card">
             <h3>🌎 Inteligência Global</h3>
-            <p>Compatível com padrões internacionais: +1, +33, +44, +55 e muito mais.</p>
+            <p>Compatível com padrões internacionais.</p>
           </div>
 
           <div className="v-extra-card">
             <h3>🤖 IA de Visão Avançada</h3>
-            <p>OCR neural avançado para máxima precisão em ambientes reais.</p>
+            <p>OCR neural com precisão otimizada para cenários reais.</p>
           </div>
 
           <div className="v-extra-card">
             <h3>⚡ Conexão Automática</h3>
-            <p>A VisionlinkIA converte números em links diretos para WhatsApp.</p>
+            <p>Números detectados viram links diretos para WhatsApp.</p>
           </div>
         </div>
       </section>
 
-      {/* OUTRAS SESSÕES (sem alterações) */}
       <section className="v-extra-section-alt">
         <div className="v-extra-title">Aplicações Reais da VisionlinkIA</div>
 
         <div className="v-applications-grid">
           <div className="v-app-card">
             <h3>🏢 Cartões Empresariais</h3>
-            <p>Abra conversas instantâneas com clientes.</p>
+            <p>Escaneie e fale com o dono imediatamente.</p>
           </div>
 
           <div className="v-app-card">
             <h3>🚐 Veículos e Outdoors</h3>
-            <p>Escaneie números de anúncios e fale imediatamente.</p>
+            <p>Transforme anúncios físicos em conversas diretas.</p>
           </div>
 
           <div className="v-app-card">
             <h3>🛍️ Etiquetas e Embalagens</h3>
-            <p>Transforme qualquer embalagem em um contato direto.</p>
+            <p>Atendimento instantâneo a partir de embalagens.</p>
           </div>
 
           <div className="v-app-card">
             <h3>📱 Telas e prints</h3>
-            <p>Detecta números até em capturas de tela.</p>
+            <p>Detecta números até dentro de screenshots.</p>
           </div>
         </div>
       </section>
@@ -196,6 +206,7 @@ export default function Home({ onStartScan, detectedNumber }) {
           🌐 experimentar o futuro agora
         </button>
       </section>
+
     </main>
   );
 }
