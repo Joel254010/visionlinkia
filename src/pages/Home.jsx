@@ -4,7 +4,6 @@ export default function Home({ onStartScan, detectedNumber }) {
   const [number, setNumber] = useState("+55 13 98107 1907");
   const [status, setStatus] = useState("aguardando leitura…");
   const [whatsLink, setWhatsLink] = useState("");
-  const [lastOpened, setLastOpened] = useState("");
 
   // ======================================================
   // 🔥 PROCESSA NÚMERO DETECTADO PELO OCR EM TEMPO REAL
@@ -12,27 +11,28 @@ export default function Home({ onStartScan, detectedNumber }) {
   useEffect(() => {
     if (!detectedNumber) return;
 
-    const cleaned = detectedNumber.replace(/\D/g, "");
+    const raw = detectedNumber.trim();
+    const digits = raw.replace(/\D/g, "");
 
-    // Ignora se vier sujeira ou número muito curto
-    if (cleaned.length < 8) return;
+    // número muito curto = provavelmente ruído
+    if (digits.length < 8) {
+      setStatus("número muito curto ou ilegível");
+      return;
+    }
 
-    // Atualiza interface
-    setNumber(detectedNumber);
+    let finalDigits = digits;
+
+    // 🔧 Heurística simples: se tiver 10 ou 11 dígitos e não começar com DDI,
+    // assume Brasil (+55) como padrão.
+    if (!finalDigits.startsWith("55") && (finalDigits.length === 10 || finalDigits.length === 11)) {
+      finalDigits = "55" + finalDigits;
+    }
+
+    setNumber(raw);
     setStatus("pronto para conectar");
 
-    const link = `https://wa.me/${cleaned}`;
+    const link = `https://wa.me/${finalDigits}`;
     setWhatsLink(link);
-
-    // Evita abrir várias vezes para o mesmo número
-    if (cleaned !== lastOpened) {
-      setLastOpened(cleaned);
-
-      // Delay suave para animação + atualização de UI
-      setTimeout(() => {
-        window.open(link, "_blank");
-      }, 600);
-    }
   }, [detectedNumber]);
 
   return (
@@ -43,7 +43,6 @@ export default function Home({ onStartScan, detectedNumber }) {
         {/*                HERO PRINCIPAL                  */}
         {/* =============================================== */}
         <section className="v-hero">
-
           <div className="v-hero-eyebrow">plataforma global • visionlinkia</div>
 
           <div className="v-hero-title">
@@ -83,7 +82,6 @@ export default function Home({ onStartScan, detectedNumber }) {
             <div className="v-badge-chip">Conexão instantânea via IA</div>
             <div className="v-badge-chip">Pronto para virar super-app mobile</div>
           </div>
-
         </section>
 
         {/* =============================================== */}
@@ -92,7 +90,6 @@ export default function Home({ onStartScan, detectedNumber }) {
         <section className="v-hero-scanner">
           <div className="v-hero-scanner-inner">
             <div className="v-scanner-frame">
-
               <div className="v-scanner-grid" />
               <div className="v-scanner-line" />
 
@@ -111,11 +108,11 @@ export default function Home({ onStartScan, detectedNumber }) {
                     <span>scanner ativo</span>
                   </div>
 
-                  <div className="v-scanner-chip">modo demonstração • v1.0</div>
+                  <div className="v-scanner-chip">modo demonstração • v1.1</div>
                 </div>
 
-                {/* BOTÃO OPCIONAL (clicável manualmente) */}
-                {whatsLink && (
+                {/* BOTÃO MANUAL — usuário decide quando abrir o WhatsApp */}
+                {whatsLink && status === "pronto para conectar" && (
                   <a
                     className="v-btn-primary"
                     href={whatsLink}
@@ -123,12 +120,10 @@ export default function Home({ onStartScan, detectedNumber }) {
                     rel="noopener noreferrer"
                     style={{ marginTop: "1rem", display: "inline-flex" }}
                   >
-                    💬 abrir conversa no whatsapp
+                    💬 falar com este número no WhatsApp
                   </a>
                 )}
-
               </div>
-
             </div>
           </div>
         </section>
@@ -136,12 +131,10 @@ export default function Home({ onStartScan, detectedNumber }) {
       </div>
 
       {/* =============================================== */}
-      {/*                 SESSÕES INFORMATIVAS            */}
+      {/*        SESSÕES INFORMATIVAS / FUTURO IA         */}
       {/* =============================================== */}
-
       <section className="v-extra-section">
         <div className="v-extra-title">Por que a VisionlinkIA é tão inovadora?</div>
-
         <p className="v-extra-sub">
           A tecnologia embarcada na VisionlinkIA redefine como humanos se conectam
           a partir do mundo físico.
@@ -155,17 +148,17 @@ export default function Home({ onStartScan, detectedNumber }) {
 
           <div className="v-extra-card">
             <h3>🌎 Inteligência Global</h3>
-            <p>Compatível com padrões internacionais.</p>
+            <p>Compatível com padrões internacionais de numeração.</p>
           </div>
 
           <div className="v-extra-card">
             <h3>🤖 IA de Visão Avançada</h3>
-            <p>OCR neural com precisão otimizada para cenários reais.</p>
+            <p>OCR neural com foco em cenários reais e texto pequeno.</p>
           </div>
 
           <div className="v-extra-card">
             <h3>⚡ Conexão Automática</h3>
-            <p>Números detectados viram links diretos para WhatsApp.</p>
+            <p>Números detectados viram links diretos para atendimento.</p>
           </div>
         </div>
       </section>
@@ -176,12 +169,12 @@ export default function Home({ onStartScan, detectedNumber }) {
         <div className="v-applications-grid">
           <div className="v-app-card">
             <h3>🏢 Cartões Empresariais</h3>
-            <p>Escaneie e fale com o dono imediatamente.</p>
+            <p>Escaneie e fale direto com o responsável.</p>
           </div>
 
           <div className="v-app-card">
             <h3>🚐 Veículos e Outdoors</h3>
-            <p>Transforme anúncios físicos em conversas diretas.</p>
+            <p>Transforme anúncios na rua em contatos em segundos.</p>
           </div>
 
           <div className="v-app-card">
@@ -191,7 +184,7 @@ export default function Home({ onStartScan, detectedNumber }) {
 
           <div className="v-app-card">
             <h3>📱 Telas e prints</h3>
-            <p>Detecta números até dentro de screenshots.</p>
+            <p>Detecta números até em screenshots e monitores.</p>
           </div>
         </div>
       </section>
@@ -199,14 +192,13 @@ export default function Home({ onStartScan, detectedNumber }) {
       <section className="v-future-section">
         <div className="v-extra-title">Tecnologia que evolui todos os dias</div>
         <p className="v-extra-sub">
-          Em breve: identificação de nomes, empresas, QR codes e muito mais.
+          Em breve: identificação de nomes, empresas, QR codes, links e muito mais.
         </p>
 
         <button className="v-btn-primary" onClick={onStartScan}>
           🌐 experimentar o futuro agora
         </button>
       </section>
-
     </main>
   );
 }

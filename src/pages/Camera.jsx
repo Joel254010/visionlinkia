@@ -11,6 +11,7 @@ export default function Camera({ onBack, onDetectNumber }) {
 
   useEffect(() => {
     let stream;
+    let ocrIntervalId;
 
     async function startCamera() {
       try {
@@ -25,45 +26,55 @@ export default function Camera({ onBack, onDetectNumber }) {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: "environment" },
-            zoom: { ideal: 2 },     // tenta zoom real de hardware
             width: { ideal: 1920 },
             height: { ideal: 1080 },
           },
           audio: false,
         });
 
-        // fallback se não suportar zoom
         if (!stream) {
+          // fallback
           stream = await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: false,
           });
         }
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
 
-          // ============================
-          //  📌 ZOOM DIGITAL EXTRA
-          // ============================
-          videoRef.current.style.transform = "scale(1.4)";
-          videoRef.current.style.transformOrigin = "center center";
+          // tenta aplicar zoom óptico se o device suportar
+          const [track] = stream.getVideoTracks();
+          const capabilities = track.getCapabilities?.();
+          if (capabilities?.zoom) {
+            const maxZoom = capabilities.zoom.max || 2;
+            track.applyConstraints({
+              advanced: [{ zoom: maxZoom * 0.7 }],
+            }).catch(() => {});
+          }
 
-          await videoRef.current.play();
+          // zoom digital extra
+          video.style.transform = "scale(1.8)";
+          video.style.transformOrigin = "center center";
+
+          await video.play();
         }
 
         setError("");
-        startOCRLoop(); 
+        ocrIntervalId = startOCRLoop();
       } catch (err) {
         console.error("Erro ao acessar câmera:", err);
 
-        if (err.name === "NotAllowedError")
+        if (err.name === "NotAllowedError") {
           setError("Permissão negada. Ative o acesso à câmera.");
-        else if (err.name === "NotFoundError")
+        } else if (err.name === "NotFoundError") {
           setError("Nenhuma câmera encontrada neste dispositivo.");
-        else if (err.name === "NotReadableError")
+        } else if (err.name === "NotReadableError") {
           setError("A câmera está sendo usada por outro aplicativo.");
-        else setError("Não foi possível acessar a câmera.");
+        } else {
+          setError("Não foi possível acessar a câmera.");
+        }
       }
     }
 
@@ -71,49 +82,60 @@ export default function Camera({ onBack, onDetectNumber }) {
 
     return () => {
       if (stream) stream.getTracks().forEach((t) => t.stop());
+      if (ocrIntervalId) clearInterval(ocrIntervalId);
       setScanning(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ====================================================
-  // 🔍 OCR LOOP — agora pegando somente a PARTE CENTRAL
+  // 🔍 OCR LOOP — recorte central + pré-processamento
   // ====================================================
   function startOCRLoop() {
-    if (scanning) return;
+    if (scanning) return null;
     setScanning(true);
 
-    const interval = setInterval(async () => {
+    const intervalId = setInterval(async () => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (!video || !canvas) return;
 
       const fullW = video.videoWidth;
       const fullH = video.videoHeight;
-
-      if (fullW === 0 || fullH === 0) return;
+      if (!fullW || !fullH) return;
 
       const ctx = canvas.getContext("2d");
 
-      // 🟦 RECORTE CENTRAL (aumenta precisão)
-      const cropW = fullW * 0.6;
-      const cropH = fullH * 0.35;
+      // 🟦 RECORTE CENTRAL (onde normalmente está o número)
+      const cropW = fullW * 0.55;
+      const cropH = fullH * 0.30;
       const cropX = (fullW - cropW) / 2;
       const cropY = (fullH - cropH) / 2;
 
       canvas.width = cropW;
       canvas.height = cropH;
 
-      ctx.drawImage(
-        video,
-        cropX,
-        cropY,
-        cropW,
-        cropH,
-        0,
-        0,
-        cropW,
-        cropH
-      );
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+      // 🧪 PRÉ-PROCESSAMENTO: cinza + contraste + binarização simples
+      const frame = ctx.getImageData(0, 0, cropW, cropH);
+      const data = frame.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // escala de cinza
+        let gray = 0.3 * r + 0.59 * g + 0.11 * b;
+
+        // aumenta contraste
+        gray = gray < 128 ? 0 : 255;
+
+        data[i] = gray;
+        data[i + 1] = gray;
+        data[i + 2] = gray;
+      }
+      ctx.putImageData(frame, 0, 0);
 
       try {
         const result = await Tesseract.recognize(canvas, "eng", {
@@ -129,7 +151,7 @@ export default function Camera({ onBack, onDetectNumber }) {
         if (match?.length > 0) {
           const clean = match[0].replace(/\s+/g, " ").trim();
 
-          if (clean !== lastDetected) {
+          if (clean && clean !== lastDetected) {
             setLastDetected(clean);
             if (onDetectNumber) onDetectNumber(clean);
           }
@@ -137,28 +159,27 @@ export default function Camera({ onBack, onDetectNumber }) {
       } catch (err) {
         console.log("OCR falhou:", err);
       }
-    }, 450); // 🔥 mais rápido e mais preciso
+    }, 700); // 0.7s entre leituras (mais estável)
 
-    return () => clearInterval(interval);
+    return intervalId;
   }
 
-  // ====================================================
-  // RENDER
-  // ====================================================
   return (
     <div className="v-camera-root">
       <div className="v-camera-header">
         <div>
           <div className="v-camera-title">MODO SCANNER • VisionlinkIA</div>
           <p className="v-camera-sub">
-            Aponte a câmera para números de telefone. A IA detecta e envia para
-            a interface principal em tempo real.
+            Aponte a câmera para um número de telefone em tela, papel ou veículo.
+            A VisionlinkIA recorta a área central e tenta ler automaticamente.
           </p>
         </div>
 
         <div className="v-camera-actions">
-          <button className="v-btn-ghost" onClick={onBack}>⬅ voltar</button>
-          <div className="v-camera-chip">beta público • v1.0</div>
+          <button className="v-btn-ghost" onClick={onBack}>
+            ⬅ voltar
+          </button>
+          <div className="v-camera-chip">beta público • v1.1</div>
         </div>
       </div>
 
@@ -175,7 +196,7 @@ export default function Camera({ onBack, onDetectNumber }) {
             {error && (
               <div className="v-camera-placeholder">
                 <span>⚠ {error}</span>
-                <span>Ative o acesso à câmera e recarregue.</span>
+                <span>Ative o acesso à câmera e recarregue a página.</span>
               </div>
             )}
           </div>
