@@ -9,77 +9,50 @@ export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
   const [scanning, setScanning] = useState(false);
   const [lastDetected, setLastDetected] = useState("");
 
-  // ================================================
-  //  🔍 REGEX PROFISSIONAL PARA PLACAS BRASIL
-  // ================================================
-  const regexPlacaMercosul = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/;
+  // ======================================================
+  // 🔍 REGEX PROFISSIONAL (MERCOSUL + ANTIGA)
+  // Permite variações comuns de OCR
+  // ======================================================
+  const regexPlacaFlex = /^[A-Z]{3}[0-9A-Z][A-Z][0-9A-Z]{2}$/; // Mercosul tolerante
   const regexPlacaAntiga = /^[A-Z]{3}-?[0-9]{4}$/;
 
+  // ======================================================
+  // 🔧 Função para corrigir erros comuns de OCR
+  // ======================================================
+  function corrigirOCR(placa) {
+    return placa
+      .replace(/O/g, "0")
+      .replace(/I/g, "1")
+      .replace(/S/g, "5")
+      .replace(/B/g, "8");
+  }
+
+  // ======================================================
+  // 🚀 INICIAR CÂMERA
+  // ======================================================
   useEffect(() => {
     let stream;
     let ocrIntervalId;
 
     async function startCamera() {
       try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          setError("Seu navegador não permite acesso à câmera.");
-          return;
-        }
-
-        // ============================
-        //  📌 AUMENTO DE ZOOM REAL
-        // ============================
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: { ideal: "environment" },
+            facingMode: "environment",
             width: { ideal: 1920 },
             height: { ideal: 1080 },
           },
-          audio: false,
         });
 
-        if (!stream) {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false,
-          });
-        }
-
         const video = videoRef.current;
-        if (video) {
-          video.srcObject = stream;
+        video.srcObject = stream;
 
-          const [track] = stream.getVideoTracks();
-          const capabilities = track.getCapabilities?.();
-          if (capabilities?.zoom) {
-            const maxZoom = capabilities.zoom.max || 2;
-            track
-              .applyConstraints({
-                advanced: [{ zoom: maxZoom * 0.7 }],
-              })
-              .catch(() => {});
-          }
+        await video.play();
 
-          video.style.transform = "scale(1.8)";
-          video.style.transformOrigin = "center center";
-
-          await video.play();
-        }
-
-        setError("");
         ocrIntervalId = startOCRLoop();
       } catch (err) {
         console.error("Erro ao acessar câmera:", err);
-
-        if (err.name === "NotAllowedError") {
-          setError("Permissão negada. Ative o acesso à câmera.");
-        } else if (err.name === "NotFoundError") {
-          setError("Nenhuma câmera encontrada neste dispositivo.");
-        } else if (err.name === "NotReadableError") {
-          setError("A câmera está sendo usada por outro aplicativo.");
-        } else {
-          setError("Não foi possível acessar a câmera.");
-        }
+        setError("Erro ao acessar câmera.");
       }
     }
 
@@ -92,9 +65,9 @@ export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
     };
   }, []);
 
-  // ====================================================
-  // 🔍 OCR LOOP — recorte central + pré-processamento
-  // ====================================================
+  // ======================================================
+  // 🧠 OCR LOOP MELHORADO PARA PLACAS
+  // ======================================================
   function startOCRLoop() {
     if (scanning) return null;
     setScanning(true);
@@ -110,81 +83,91 @@ export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
 
       const ctx = canvas.getContext("2d");
 
-      // 🟦 RECORTE CENTRAL
-      const cropW = fullW * 0.55;
-      const cropH = fullH * 0.30;
+      // ======================================================
+      // 🟦 RECORTE OTIMIZADO PARA PLACA (mais horizontal)
+      // ======================================================
+      const cropW = fullW * 0.80;
+      const cropH = fullH * 0.22;
       const cropX = (fullW - cropW) / 2;
-      const cropY = (fullH - cropH) / 2;
+      const cropY = fullH * 0.58;
 
       canvas.width = cropW;
       canvas.height = cropH;
 
       ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
-      // 🧪 PRÉ-PROCESSAMENTO
+      // ======================================================
+      // 🎨 PRÉ-PROCESSAMENTO MELHORADO
+      // ======================================================
       const frame = ctx.getImageData(0, 0, cropW, cropH);
       const data = frame.data;
+
       for (let i = 0; i < data.length; i += 4) {
-        let gray = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
-        gray = gray < 128 ? 0 : 255;
+        let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        gray = gray < 140 ? 0 : 255;
         data[i] = data[i + 1] = data[i + 2] = gray;
       }
+
       ctx.putImageData(frame, 0, 0);
 
+      // ======================================================
+      // 🔠 OCR
+      // ======================================================
       try {
         const result = await Tesseract.recognize(canvas, "eng", {
-          tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -()",
+          tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
         });
 
-        let text = result.data.text.toUpperCase().replace(/\s+/g, "");
+        let rawText = result.data.text;
+        let text = rawText.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-        // ================================================
-        // 🔎 DETECÇÃO DE PLACAS AUTOMOTIVAS
-        // ================================================
-        const placaMatch = text.match(/[A-Z0-9-]{6,8}/g);
+        console.log("📸 OCR RAW:", rawText);
+        console.log("🔤 OCR CLEAN:", text);
 
-        if (placaMatch) {
-          for (let p of placaMatch) {
-            let clean = p.replace(/[^A-Z0-9]/g, "");
+        // ======================================================
+        // 🔎 PROCURAR PADRÃO DE PLACA
+        // ======================================================
+        if (text.length >= 6 && text.length <= 8) {
+          let corrigida = corrigirOCR(text);
+          console.log("🔧 OCR CORRIGIDA:", corrigida);
 
-            // Mercosul (AAA1B23)
-            if (regexPlacaMercosul.test(clean)) {
-              if (clean !== lastDetected) {
-                setLastDetected(clean);
-                if (onDetectPlate) onDetectPlate(clean);
-              }
-              return;
+          // Mercosul
+          if (regexPlacaFlex.test(corrigida)) {
+            if (corrigida !== lastDetected) {
+              console.log("🎯 PLACA MERCOSUL DETECTADA:", corrigida);
+              setLastDetected(corrigida);
+              onDetectPlate?.(corrigida);
             }
+            return;
+          }
 
-            // Antiga (AAA1234)
-            if (regexPlacaAntiga.test(clean)) {
-              if (clean !== lastDetected) {
-                setLastDetected(clean);
-                if (onDetectPlate) onDetectPlate(clean);
-              }
-              return;
+          // Antiga
+          if (regexPlacaAntiga.test(corrigida)) {
+            if (corrigida !== lastDetected) {
+              console.log("🎯 PLACA ANTIGA DETECTADA:", corrigida);
+              setLastDetected(corrigida);
+              onDetectPlate?.(corrigida);
             }
+            return;
           }
         }
 
-        // ================================================
-        // 🔎 DETECÇÃO DE TELEFONE (MODO ANTIGO)
-        // ================================================
-        const matchPhone = text.match(
-          /(\+?\d{1,3}[- ]?)?(\(?\d{2,3}\)?[- ]?)?(\d{4,5}[- ]?\d{4})/
-        );
-
-        if (matchPhone) {
-          const cleanPhone = matchPhone[0].trim();
-          if (cleanPhone !== lastDetected) {
-            setLastDetected(cleanPhone);
-            if (onDetectNumber) onDetectNumber(cleanPhone);
+        // ======================================================
+        // 📞 DETECÇÃO DE TELEFONE (continua funcionando)
+        // ======================================================
+        const phoneMatch = rawText.match(/(\d{4,5}[- ]?\d{4})/);
+        if (phoneMatch) {
+          const phone = phoneMatch[0];
+          if (phone !== lastDetected) {
+            console.log("📞 TELEFONE DETECTADO:", phone);
+            setLastDetected(phone);
+            onDetectNumber?.(phone);
           }
         }
       } catch (err) {
-        console.log("OCR falhou:", err);
+        console.error("❌ OCR falhou:", err);
       }
-    }, 700); // mais estável
+    }, 900); // intervalo maior melhora a precis�o
 
     return intervalId;
   }
@@ -201,10 +184,8 @@ export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
         </div>
 
         <div className="v-camera-actions">
-          <button className="v-btn-ghost" onClick={onBack}>
-            ⬅ voltar
-          </button>
-          <div className="v-camera-chip">beta público • v1.2</div>
+          <button className="v-btn-ghost" onClick={onBack}>⬅ voltar</button>
+          <div className="v-camera-chip">beta público • v1.3</div>
         </div>
       </div>
 
