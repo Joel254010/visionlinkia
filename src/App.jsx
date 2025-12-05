@@ -7,37 +7,42 @@ export default function App() {
   // controla a troca de telas
   const [screen, setScreen] = useState("home"); // 'home' | 'camera'
 
-  // estado global onde fica armazenado o número detectado pela câmera
+  // número detectado pelo OCR
   const [detectedNumber, setDetectedNumber] = useState("");
+
+  // NOVO → placa detectada pelo OCR
+  const [detectedPlate, setDetectedPlate] = useState("");
 
   const goToCamera = () => setScreen("camera");
   const goToHome = () => setScreen("home");
 
   return (
     <div className="vision-app">
-      {/* topo */}
+      {/* Topo */}
       <Header onStartScan={goToCamera} />
 
-      {/* tela HOME (recebe número detectado e atualiza interface) */}
+      {/* TELA HOME → recebe número e placa */}
       {screen === "home" && (
         <Home
           onStartScan={goToCamera}
           detectedNumber={detectedNumber}
+          detectedPlate={detectedPlate}   // <-- ADICIONADO
         />
       )}
 
-      {/* tela CAMERA (envia número detectado para o App.jsx) */}
+      {/* TELA CÂMERA → detecta número e placa */}
       {screen === "camera" && (
         <Camera
           onBack={goToHome}
-          onDetectNumber={setDetectedNumber} 
+          onDetectNumber={setDetectedNumber}
+          onDetectPlate={setDetectedPlate}   // <-- ADICIONADO
         />
       )}
 
-      {/* rodapé */}
+      {/* Rodapé */}
       <footer className="v-footer">
         VisionlinkIA • câmera inteligente para leitura de contatos —
-        <span>&nbsp;versão web 1.0</span>
+        <span>&nbsp;versão web 1.2</span>
       </footer>
     </div>
   );

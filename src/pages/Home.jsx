@@ -1,12 +1,28 @@
 import { useEffect, useState } from "react";
+import PlateCard from "../components/PlateCard";
 
-export default function Home({ onStartScan, detectedNumber }) {
+export default function Home({ onStartScan, detectedNumber, detectedPlate }) {
   const [number, setNumber] = useState("+55 13 98107 1907");
   const [status, setStatus] = useState("aguardando leitura…");
   const [whatsLink, setWhatsLink] = useState("");
 
+  // NOVO → Estado para abrir/fechar o card de placa detectada
+  const [plateOpen, setPlateOpen] = useState(false);
+  const [plateValue, setPlateValue] = useState("");
+
   // ======================================================
-  // 🔥 PROCESSA NÚMERO DETECTADO PELO OCR EM TEMPO REAL
+  // 🔥 PROCESSA PLACA DETECTADA PELO OCR
+  // ======================================================
+  useEffect(() => {
+    if (!detectedPlate) return;
+
+    setPlateValue(detectedPlate);
+    setPlateOpen(true);
+
+  }, [detectedPlate]);
+
+  // ======================================================
+  // 🔥 PROCESSA NÚMERO DETECTADO PELO OCR (continua igual)
   // ======================================================
   useEffect(() => {
     if (!detectedNumber) return;
@@ -14,7 +30,6 @@ export default function Home({ onStartScan, detectedNumber }) {
     const raw = detectedNumber.trim();
     const digits = raw.replace(/\D/g, "");
 
-    // número muito curto = provavelmente ruído
     if (digits.length < 8) {
       setStatus("número muito curto ou ilegível");
       return;
@@ -22,8 +37,6 @@ export default function Home({ onStartScan, detectedNumber }) {
 
     let finalDigits = digits;
 
-    // 🔧 Heurística simples: se tiver 10 ou 11 dígitos e não começar com DDI,
-    // assume Brasil (+55) como padrão.
     if (!finalDigits.startsWith("55") && (finalDigits.length === 10 || finalDigits.length === 11)) {
       finalDigits = "55" + finalDigits;
     }
@@ -111,7 +124,7 @@ export default function Home({ onStartScan, detectedNumber }) {
                   <div className="v-scanner-chip">modo demonstração • v1.1</div>
                 </div>
 
-                {/* BOTÃO MANUAL — usuário decide quando abrir o WhatsApp */}
+                {/* BOTÃO MANUAL — abrir WhatsApp */}
                 {whatsLink && status === "pronto para conectar" && (
                   <a
                     className="v-btn-primary"
@@ -130,9 +143,9 @@ export default function Home({ onStartScan, detectedNumber }) {
 
       </div>
 
-      {/* =============================================== */}
-      {/*        SESSÕES INFORMATIVAS / FUTURO IA         */}
-      {/* =============================================== */}
+      {/* =================================================== */}
+      {/*        SESSÕES INFORMATIVAS / FUTURO IA            */}
+      {/* =================================================== */}
       <section className="v-extra-section">
         <div className="v-extra-title">Por que a VisionlinkIA é tão inovadora?</div>
         <p className="v-extra-sub">
@@ -199,6 +212,16 @@ export default function Home({ onStartScan, detectedNumber }) {
           🌐 experimentar o futuro agora
         </button>
       </section>
+
+      {/* =================================================== */}
+      {/*            📌 CARD DE PLACA DETECTADA             */}
+      {/* =================================================== */}
+      {plateOpen && (
+        <PlateCard
+          plate={plateValue}
+          onClose={() => setPlateOpen(false)}
+        />
+      )}
     </main>
   );
 }

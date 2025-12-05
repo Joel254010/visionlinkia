@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import Tesseract from "tesseract.js";
 
-export default function Camera({ onBack, onDetectNumber }) {
+export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
   const [error, setError] = useState("");
   const [scanning, setScanning] = useState(false);
   const [lastDetected, setLastDetected] = useState("");
+
+  // ================================================
+  //  🔍 REGEX PROFISSIONAL PARA PLACAS BRASIL
+  // ================================================
+  const regexPlacaMercosul = /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/;
+  const regexPlacaAntiga = /^[A-Z]{3}-?[0-9]{4}$/;
 
   useEffect(() => {
     let stream;
@@ -33,7 +39,6 @@ export default function Camera({ onBack, onDetectNumber }) {
         });
 
         if (!stream) {
-          // fallback
           stream = await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: false,
@@ -44,17 +49,17 @@ export default function Camera({ onBack, onDetectNumber }) {
         if (video) {
           video.srcObject = stream;
 
-          // tenta aplicar zoom óptico se o device suportar
           const [track] = stream.getVideoTracks();
           const capabilities = track.getCapabilities?.();
           if (capabilities?.zoom) {
             const maxZoom = capabilities.zoom.max || 2;
-            track.applyConstraints({
-              advanced: [{ zoom: maxZoom * 0.7 }],
-            }).catch(() => {});
+            track
+              .applyConstraints({
+                advanced: [{ zoom: maxZoom * 0.7 }],
+              })
+              .catch(() => {});
           }
 
-          // zoom digital extra
           video.style.transform = "scale(1.8)";
           video.style.transformOrigin = "center center";
 
@@ -85,7 +90,6 @@ export default function Camera({ onBack, onDetectNumber }) {
       if (ocrIntervalId) clearInterval(ocrIntervalId);
       setScanning(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ====================================================
@@ -106,7 +110,7 @@ export default function Camera({ onBack, onDetectNumber }) {
 
       const ctx = canvas.getContext("2d");
 
-      // 🟦 RECORTE CENTRAL (onde normalmente está o número)
+      // 🟦 RECORTE CENTRAL
       const cropW = fullW * 0.55;
       const cropH = fullH * 0.30;
       const cropX = (fullW - cropW) / 2;
@@ -117,49 +121,70 @@ export default function Camera({ onBack, onDetectNumber }) {
 
       ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
-      // 🧪 PRÉ-PROCESSAMENTO: cinza + contraste + binarização simples
+      // 🧪 PRÉ-PROCESSAMENTO
       const frame = ctx.getImageData(0, 0, cropW, cropH);
       const data = frame.data;
       for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        // escala de cinza
-        let gray = 0.3 * r + 0.59 * g + 0.11 * b;
-
-        // aumenta contraste
+        let gray = 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2];
         gray = gray < 128 ? 0 : 255;
-
-        data[i] = gray;
-        data[i + 1] = gray;
-        data[i + 2] = gray;
+        data[i] = data[i + 1] = data[i + 2] = gray;
       }
       ctx.putImageData(frame, 0, 0);
 
       try {
         const result = await Tesseract.recognize(canvas, "eng", {
-          tessedit_char_whitelist: "0123456789+()- ",
+          tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -()",
         });
 
-        const text = result.data.text;
+        let text = result.data.text.toUpperCase().replace(/\s+/g, "");
 
-        const match = text.match(
-          /(\+?\d{1,3}[\s-]?)?(\(?\d{2,3}\)?[\s-]?)?(\d{4,5}[\s-]?\d{4})/g
+        // ================================================
+        // 🔎 DETECÇÃO DE PLACAS AUTOMOTIVAS
+        // ================================================
+        const placaMatch = text.match(/[A-Z0-9-]{6,8}/g);
+
+        if (placaMatch) {
+          for (let p of placaMatch) {
+            let clean = p.replace(/[^A-Z0-9]/g, "");
+
+            // Mercosul (AAA1B23)
+            if (regexPlacaMercosul.test(clean)) {
+              if (clean !== lastDetected) {
+                setLastDetected(clean);
+                if (onDetectPlate) onDetectPlate(clean);
+              }
+              return;
+            }
+
+            // Antiga (AAA1234)
+            if (regexPlacaAntiga.test(clean)) {
+              if (clean !== lastDetected) {
+                setLastDetected(clean);
+                if (onDetectPlate) onDetectPlate(clean);
+              }
+              return;
+            }
+          }
+        }
+
+        // ================================================
+        // 🔎 DETECÇÃO DE TELEFONE (MODO ANTIGO)
+        // ================================================
+        const matchPhone = text.match(
+          /(\+?\d{1,3}[- ]?)?(\(?\d{2,3}\)?[- ]?)?(\d{4,5}[- ]?\d{4})/
         );
 
-        if (match?.length > 0) {
-          const clean = match[0].replace(/\s+/g, " ").trim();
-
-          if (clean && clean !== lastDetected) {
-            setLastDetected(clean);
-            if (onDetectNumber) onDetectNumber(clean);
+        if (matchPhone) {
+          const cleanPhone = matchPhone[0].trim();
+          if (cleanPhone !== lastDetected) {
+            setLastDetected(cleanPhone);
+            if (onDetectNumber) onDetectNumber(cleanPhone);
           }
         }
       } catch (err) {
         console.log("OCR falhou:", err);
       }
-    }, 700); // 0.7s entre leituras (mais estável)
+    }, 700); // mais estável
 
     return intervalId;
   }
@@ -170,8 +195,8 @@ export default function Camera({ onBack, onDetectNumber }) {
         <div>
           <div className="v-camera-title">MODO SCANNER • VisionlinkIA</div>
           <p className="v-camera-sub">
-            Aponte a câmera para um número de telefone em tela, papel ou veículo.
-            A VisionlinkIA recorta a área central e tenta ler automaticamente.
+            Aponte a câmera para uma PLACA ou um NÚMERO de telefone.
+            A VisionlinkIA detecta automaticamente o tipo.
           </p>
         </div>
 
@@ -179,7 +204,7 @@ export default function Camera({ onBack, onDetectNumber }) {
           <button className="v-btn-ghost" onClick={onBack}>
             ⬅ voltar
           </button>
-          <div className="v-camera-chip">beta público • v1.1</div>
+          <div className="v-camera-chip">beta público • v1.2</div>
         </div>
       </div>
 
