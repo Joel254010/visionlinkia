@@ -7,26 +7,32 @@ export default function Home({
   detectedNumber,
   detectedPlate,
 }) {
-  const [number, setNumber] = useState("+55 13 98107 1907");
-  const [status, setStatus] = useState("aguardando leitura…");
+  // ===== TELEFONE =====
+  const [number, setNumber] = useState("");
   const [whatsLink, setWhatsLink] = useState("");
+  const [phoneStatus, setPhoneStatus] = useState("aguardando leitura…");
 
-  // Card de placa
-  const [plateOpen, setPlateOpen] = useState(false);
+  // ===== PLACA =====
   const [plateValue, setPlateValue] = useState("");
+  const [plateOpen, setPlateOpen] = useState(false);
+
+  // ===== CARD PREMIUM DINÂMICO =====
+  const [activeMode, setActiveMode] = useState(null); 
+  // valores possíveis: "phone" | "plate" | null
 
   // ======================================================
-  // 📌 Quando uma placa é detectada
+  // 📌 DETECÇÃO DE PLACA
   // ======================================================
   useEffect(() => {
     if (!detectedPlate) return;
 
     setPlateValue(detectedPlate);
     setPlateOpen(true);
+    setActiveMode("plate");
   }, [detectedPlate]);
 
   // ======================================================
-  // 📌 Quando um número é detectado
+  // 📌 DETECÇÃO DE TELEFONE
   // ======================================================
   useEffect(() => {
     if (!detectedNumber) return;
@@ -35,31 +41,106 @@ export default function Home({
     const digits = raw.replace(/\D/g, "");
 
     if (digits.length < 8) {
-      setStatus("número muito curto ou ilegível");
+      setPhoneStatus("número muito curto ou ilegível");
       return;
     }
 
     let finalDigits = digits;
 
-    if (!finalDigits.startsWith("55")
-        && (finalDigits.length === 10 || finalDigits.length === 11)) {
+    if (
+      !finalDigits.startsWith("55") &&
+      (finalDigits.length === 10 || finalDigits.length === 11)
+    ) {
       finalDigits = "55" + finalDigits;
     }
 
     setNumber(raw);
-    setStatus("pronto para conectar");
+    setPhoneStatus("pronto para conectar");
 
-    const link = `https://wa.me/${finalDigits}`;
-    setWhatsLink(link);
+    setWhatsLink(`https://wa.me/${finalDigits}`);
+    setActiveMode("phone");
   }, [detectedNumber]);
 
+  // ======================================================
+  // 📌 CARD PREMIUM – SUPER ESTILIZADO
+  // ======================================================
+  const renderDynamicCard = () => {
+    if (!activeMode) return null;
+
+    return (
+      <section className="v-premium-wrapper">
+        <div className="v-premium-glow"></div>
+
+        <div className="v-premium-card">
+          <div className="v-scanner-grid" />
+          <div className="v-scanner-line" />
+
+          {/* === TELEFONE === */}
+          {activeMode === "phone" && (
+            <div className="v-premium-inner">
+              <div className="v-premium-number">{number}</div>
+              <div className="v-premium-tag">número detectado • {phoneStatus}</div>
+
+              <div className="v-premium-footer">
+                <div className="v-status">
+                  <span className="v-dot"></span>
+                  scanner ativo (telefone)
+                </div>
+
+                <div className="v-chip">modo leitura telefônica • v2.0</div>
+              </div>
+
+              {whatsLink && phoneStatus === "pronto para conectar" && (
+                <a
+                  href={whatsLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="v-premium-btn"
+                >
+                  💬 falar com este número no WhatsApp
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* === PLACA === */}
+          {activeMode === "plate" && (
+            <div className="v-premium-inner">
+              <div className="v-premium-number">{plateValue}</div>
+              <div className="v-premium-tag">
+                placa detectada • padrão reconhecido
+              </div>
+
+              <div className="v-premium-footer">
+                <div className="v-status">
+                  <span className="v-dot"></span>
+                  scanner ativo (placa)
+                </div>
+
+                <div className="v-chip">modo leitura veicular • v2.0</div>
+              </div>
+
+              <button
+                className="v-premium-btn"
+                onClick={() => setPlateOpen(true)}
+              >
+                🚗 ver informações do veículo
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+    );
+  };
+
+  // ======================================================
+  // 📌 LAYOUT COMPLETO
+  // ======================================================
   return (
     <main className="v-main">
       <div className="v-main-inner">
 
-        {/* =============================================== */}
-        {/*                HERO PRINCIPAL                  */}
-        {/* =============================================== */}
+        {/* ================= HERO ================= */}
         <section className="v-hero">
           <div className="v-hero-eyebrow">plataforma global • visionlinkia</div>
 
@@ -71,22 +152,15 @@ export default function Home({
               </span>
             </h1>
 
-            <h2 className="v-hero-headline">
-              Câmera inteligente com leitura especializada
-            </h2>
+            <h2 className="v-hero-headline">Câmera inteligente VisionlinkIA</h2>
           </div>
 
           <p className="v-hero-description">
-            A <strong>VISIONlinkIA</strong> permite que você escolha o modo
-            de leitura mais avançado para sua necessidade:
-            <strong> contatos telefônicos</strong> ou <strong>placas veiculares</strong>.
-            Nossa IA foi treinada para atuar com precisão em cenários reais.
+            Escolha o modo de leitura avançado:{" "}
+            <strong>telefone</strong> ou <strong>placa veicular</strong>.
           </p>
 
-          {/* ====================================================== */}
-          {/*            BOTÕES SEPARADOS DE LEITURA                 */}
-          {/* ====================================================== */}
-          <div className="v-hero-actions" style={{ gap: "1rem" }}>
+          <div className="v-hero-actions">
             <button className="v-btn-primary" onClick={onStartScanPhone}>
               📞 Ler número de telefone
             </button>
@@ -97,125 +171,46 @@ export default function Home({
           </div>
 
           <div className="v-badge-strip">
-            <div className="v-badge-chip">IA híbrida: OCR + heurísticas inteligentes</div>
-            <div className="v-badge-chip">Precisão aprimorada em ambientes reais</div>
-            <div className="v-badge-chip">Leitura segmentada por contexto</div>
-            <div className="v-badge-chip">Pronto para super-app VisionlinkIA</div>
+            <div className="v-badge-chip">OCR neural inteligente</div>
+            <div className="v-badge-chip">Precisão aprimorada</div>
+            <div className="v-badge-chip">Modo duplo</div>
+            <div className="v-badge-chip">Arquitetura VisionlinkIA</div>
           </div>
         </section>
 
-        {/* ====================================================== */}
-        {/*                 VISOR DINÂMICO DO TELEFONE             */}
-        {/* ====================================================== */}
-        <section className="v-hero-scanner">
-          <div className="v-hero-scanner-inner">
-            <div className="v-scanner-frame">
-              <div className="v-scanner-grid" />
-              <div className="v-scanner-line" />
+        {/* CARD PREMIUM */}
+        {renderDynamicCard()}
 
-              <div className="v-scanner-content">
-                <div>
-                  <div className="v-scanner-number">{number}</div>
-                  <div className="v-scanner-tag">
-                    número detectado • {status}
-                  </div>
-                </div>
-
-                <div className="v-scanner-footer">
-                  <div className="v-scanner-status">
-                    <span className="v-dot"></span>
-                    <span>scanner ativo (telefone)</span>
-                  </div>
-
-                  <div className="v-scanner-chip">modo leitura telefônica • v2.0</div>
-                </div>
-
-                {whatsLink && status === "pronto para conectar" && (
-                  <a
-                    className="v-btn-primary"
-                    href={whatsLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ marginTop: "1rem", display: "inline-flex" }}
-                  >
-                    💬 falar com este número no WhatsApp
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ====================================================== */}
-        {/*          SESSÃO EXPLICATIVA SOBRE TELEFONE            */}
-        {/* ====================================================== */}
+        {/* SEÇÕES INFORMATIVAS (inalteradas) */}
         <section className="v-extra-section">
           <div className="v-extra-title">Leitura inteligente de números</div>
-          <p className="v-extra-sub">
-            A IA identifica padrões internacionais de telefonia automaticamente.
-          </p>
-
           <div className="v-extra-grid">
             <div className="v-extra-card">
               <h3>📲 Reconhecimento avançado</h3>
-              <p>A VisionlinkIA extrai números até em ambientes desfavoráveis.</p>
+              <p>Extrai números até em ambientes desfavoráveis.</p>
             </div>
-
             <div className="v-extra-card">
               <h3>🌍 Compatível com DDI</h3>
-              <p>Do Brasil ao Japão: detectamos padrões globais.</p>
+              <p>De +1 a +81, telefonia global.</p>
             </div>
-
             <div className="v-extra-card">
-              <h3>⚡ Conexão Instantânea</h3>
-              <p>Toque uma vez e fale no WhatsApp.</p>
+              <h3>⚡ Conexão instantânea</h3>
+              <p>Um toque e você fala no WhatsApp.</p>
             </div>
           </div>
         </section>
 
-        {/* ====================================================== */}
-        {/*           SESSÃO EXPLICATIVA SOBRE PLACAS             */}
-        {/* ====================================================== */}
         <section className="v-extra-section-alt">
           <div className="v-extra-title">Leitura especializada de placas</div>
-
           <div className="v-applications-grid">
-            <div className="v-app-card">
-              <h3>🚗 Placas Mercosul</h3>
-              <p>Reconhecimento otimizado para AAA1B23.</p>
-            </div>
-
-            <div className="v-app-card">
-              <h3>🚘 Placas antigas</h3>
-              <p>Detecta modelos no padrão AAA-1234.</p>
-            </div>
-
-            <div className="v-app-card">
-              <h3>🧠 IA com autocorreção</h3>
-              <p>Corrige falhas comuns do OCR automaticamente.</p>
-            </div>
-
-            <div className="v-app-card">
-              <h3>🔎 Pesquisa automática</h3>
-              <p>Integração direta com o card de informações veiculares.</p>
-            </div>
+            <div className="v-app-card"><h3>🚗 Mercosul</h3></div>
+            <div className="v-app-card"><h3>🚘 Antigas</h3></div>
+            <div className="v-app-card"><h3>🧠 Autocorreção</h3></div>
+            <div className="v-app-card"><h3>🔎 Análise completa</h3></div>
           </div>
         </section>
 
-        <section className="v-future-section">
-          <div className="v-extra-title">Tecnologia VisionlinkIA</div>
-          <p className="v-extra-sub">
-            Evoluindo diariamente com novos módulos inteligentes.
-          </p>
-
-          <div className="v-btn-primary" onClick={onStartScanPhone}>
-            🌐 testar leitura instantânea
-          </div>
-        </section>
-
-        {/* ====================================================== */}
-        {/*            📌 CARD DE PLACA DETECTADA                 */}
-        {/* ====================================================== */}
+        {/* CARD DE PLACA */}
         {plateOpen && (
           <PlateCard plate={plateValue} onClose={() => setPlateOpen(false)} />
         )}

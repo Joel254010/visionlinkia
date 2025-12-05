@@ -5,44 +5,68 @@ import Camera from "./pages/Camera.jsx";
 
 export default function App() {
   // controla a troca de telas
-  const [screen, setScreen] = useState("home"); // 'home' | 'camera'
+  const [screen, setScreen] = useState("home");
+
+  // modo atual de leitura: "phone" | "plate" | null
+  const [scanMode, setScanMode] = useState(null);
 
   // número detectado pelo OCR
   const [detectedNumber, setDetectedNumber] = useState("");
 
-  // NOVO → placa detectada pelo OCR
+  // placa detectada pelo OCR
   const [detectedPlate, setDetectedPlate] = useState("");
 
-  const goToCamera = () => setScreen("camera");
+  // ir para câmera no modo TELEFONE
+  const startPhoneScan = () => {
+    setScanMode("phone");
+    setScreen("camera");
+  };
+
+  // ir para câmera no modo PLACA
+  const startPlateScan = () => {
+    setScanMode("plate");
+    setScreen("camera");
+  };
+
+  // voltar para home
   const goToHome = () => setScreen("home");
 
   return (
     <div className="vision-app">
-      {/* Topo */}
-      <Header onStartScan={goToCamera} />
+      
+      {/* Header */}
+      <Header 
+        onStartScan={startPhoneScan} 
+      />
 
-      {/* TELA HOME → recebe número e placa */}
+      {/* ============================== */}
+      {/*            HOME                */}
+      {/* ============================== */}
       {screen === "home" && (
         <Home
-          onStartScan={goToCamera}
+          onStartScanPhone={startPhoneScan}
+          onStartScanPlate={startPlateScan}
           detectedNumber={detectedNumber}
-          detectedPlate={detectedPlate}   // <-- ADICIONADO
+          detectedPlate={detectedPlate}
         />
       )}
 
-      {/* TELA CÂMERA → detecta número e placa */}
+      {/* ============================== */}
+      {/*            CAMERA              */}
+      {/* ============================== */}
       {screen === "camera" && (
         <Camera
+          mode={scanMode}
           onBack={goToHome}
           onDetectNumber={setDetectedNumber}
-          onDetectPlate={setDetectedPlate}   // <-- ADICIONADO
+          onDetectPlate={setDetectedPlate}
         />
       )}
 
       {/* Rodapé */}
       <footer className="v-footer">
         VisionlinkIA • câmera inteligente para leitura de contatos —
-        <span>&nbsp;versão web 1.2</span>
+        <span>&nbsp;versão web 1.3</span>
       </footer>
     </div>
   );

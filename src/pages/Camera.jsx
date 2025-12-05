@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Tesseract from "tesseract.js";
 
-export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
+export default function Camera({ mode, onBack, onDetectNumber, onDetectPlate }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -10,16 +10,15 @@ export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
   const [lastDetected, setLastDetected] = useState("");
 
   // ======================================================
-  // 🔍 REGEX PROFISSIONAL (MERCOSUL + ANTIGA)
-  // Permite variações comuns de OCR
+  // 🔍 REGEX DE PLACAS BR COMO SUPORTE FLEXÍVEL
   // ======================================================
-  const regexPlacaFlex = /^[A-Z]{3}[0-9A-Z][A-Z][0-9A-Z]{2}$/; // Mercosul tolerante
+  const regexPlacaFlex = /^[A-Z]{3}[0-9A-Z][A-Z][0-9A-Z]{2}$/;
   const regexPlacaAntiga = /^[A-Z]{3}-?[0-9]{4}$/;
 
   // ======================================================
-  // 🔧 Função para corrigir erros comuns de OCR
+  // 🔧 Correção automática de OCR para placas
   // ======================================================
-  function corrigirOCR(placa) {
+  function corrigirPlaca(placa) {
     return placa
       .replace(/O/g, "0")
       .replace(/I/g, "1")
@@ -28,7 +27,7 @@ export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
   }
 
   // ======================================================
-  // 🚀 INICIAR CÂMERA
+  // 🚀 Iniciar câmera
   // ======================================================
   useEffect(() => {
     let stream;
@@ -48,7 +47,6 @@ export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
         video.srcObject = stream;
 
         await video.play();
-
         ocrIntervalId = startOCRLoop();
       } catch (err) {
         console.error("Erro ao acessar câmera:", err);
@@ -63,13 +61,13 @@ export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
       if (ocrIntervalId) clearInterval(ocrIntervalId);
       setScanning(false);
     };
-  }, []);
+  }, [mode]);
 
   // ======================================================
-  // 🧠 OCR LOOP MELHORADO PARA PLACAS
+  // 🧠 OCR LOOP — totalmente separado por modo
   // ======================================================
   function startOCRLoop() {
-    if (scanning) return null;
+    if (scanning) return;
     setScanning(true);
 
     const intervalId = setInterval(async () => {
@@ -83,22 +81,33 @@ export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
 
       const ctx = canvas.getContext("2d");
 
-      // ======================================================
-      // 🟦 RECORTE OTIMIZADO PARA PLACA (mais horizontal)
-      // ======================================================
-      const cropW = fullW * 0.80;
-      const cropH = fullH * 0.22;
-      const cropX = (fullW - cropW) / 2;
-      const cropY = fullH * 0.58;
+      // ================================================
+      // 📸 DEFINIÇÃO DO CROP POR MODO (FUNDAMENTAL!)
+      // ================================================
+      let cropW, cropH, cropX, cropY;
+
+      if (mode === "plate") {
+        // Placas são horizontais → crop largo e baixo
+        cropW = fullW * 0.80;
+        cropH = fullH * 0.22;
+        cropX = (fullW - cropW) / 2;
+        cropY = fullH * 0.55;
+      } else {
+        // Telefones são verticais e grandes → crop central alto
+        cropW = fullW * 0.55;
+        cropH = fullH * 0.30;
+        cropX = (fullW - cropW) / 2;
+        cropY = (fullH - cropH) / 2;
+      }
 
       canvas.width = cropW;
       canvas.height = cropH;
 
       ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
-      // ======================================================
-      // 🎨 PRÉ-PROCESSAMENTO MELHORADO
-      // ======================================================
+      // ================================================
+      // 🎨 PRÉ-PROCESSAMENTO UNIFICADO
+      // ================================================
       const frame = ctx.getImageData(0, 0, cropW, cropH);
       const data = frame.data;
 
@@ -110,82 +119,96 @@ export default function Camera({ onBack, onDetectNumber, onDetectPlate }) {
 
       ctx.putImageData(frame, 0, 0);
 
-      // ======================================================
-      // 🔠 OCR
-      // ======================================================
+      // ================================================
+      // 🔠 OCR — whitelist separada por modo
+      // ================================================
+      let whitelist =
+        mode === "plate"
+          ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+          : "0123456789() -+";
+
       try {
         const result = await Tesseract.recognize(canvas, "eng", {
-          tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+          tessedit_char_whitelist: whitelist,
         });
 
-        let rawText = result.data.text;
-        let text = rawText.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        let raw = result.data.text.toUpperCase().trim();
+        let clean = raw.replace(/[^A-Z0-9]/g, "");
 
-        console.log("📸 OCR RAW:", rawText);
-        console.log("🔤 OCR CLEAN:", text);
+        console.log("RAW:", raw);
+        console.log("CLEAN:", clean);
 
         // ======================================================
-        // 🔎 PROCURAR PADRÃO DE PLACA
+        // 🎯 MODE = PLACA
         // ======================================================
-        if (text.length >= 6 && text.length <= 8) {
-          let corrigida = corrigirOCR(text);
-          console.log("🔧 OCR CORRIGIDA:", corrigida);
+        if (mode === "plate") {
+          if (clean.length >= 6 && clean.length <= 8) {
+            let corrected = corrigirPlaca(clean);
+            console.log("CORRIGIDA:", corrected);
 
-          // Mercosul
-          if (regexPlacaFlex.test(corrigida)) {
-            if (corrigida !== lastDetected) {
-              console.log("🎯 PLACA MERCOSUL DETECTADA:", corrigida);
-              setLastDetected(corrigida);
-              onDetectPlate?.(corrigida);
+            if (
+              regexPlacaFlex.test(corrected) ||
+              regexPlacaAntiga.test(corrected)
+            ) {
+              if (corrected !== lastDetected) {
+                setLastDetected(corrected);
+                onDetectPlate?.(corrected);
+              }
             }
-            return;
           }
-
-          // Antiga
-          if (regexPlacaAntiga.test(corrigida)) {
-            if (corrigida !== lastDetected) {
-              console.log("🎯 PLACA ANTIGA DETECTADA:", corrigida);
-              setLastDetected(corrigida);
-              onDetectPlate?.(corrigida);
-            }
-            return;
-          }
+          return;
         }
 
         // ======================================================
-        // 📞 DETECÇÃO DE TELEFONE (continua funcionando)
+        // 🎯 MODE = TELEFONE
         // ======================================================
-        const phoneMatch = rawText.match(/(\d{4,5}[- ]?\d{4})/);
-        if (phoneMatch) {
-          const phone = phoneMatch[0];
-          if (phone !== lastDetected) {
-            console.log("📞 TELEFONE DETECTADO:", phone);
-            setLastDetected(phone);
-            onDetectNumber?.(phone);
+        if (mode === "phone") {
+          const phoneMatch = raw.match(
+            /(\+?\d{1,3}[- ]?)?(\(?\d{2,3}\)?[- ]?)?(\d{4,5}[- ]?\d{4})/
+          );
+
+          if (phoneMatch) {
+            const phone = phoneMatch[0];
+            if (phone !== lastDetected) {
+              setLastDetected(phone);
+              onDetectNumber?.(phone);
+            }
           }
+          return;
         }
       } catch (err) {
-        console.error("❌ OCR falhou:", err);
+        console.error("OCR falhou:", err);
       }
-    }, 900); // intervalo maior melhora a precis�o
+    }, 900);
 
     return intervalId;
   }
 
+  // ======================================================
+  // UI
+  // ======================================================
   return (
     <div className="v-camera-root">
       <div className="v-camera-header">
         <div>
           <div className="v-camera-title">MODO SCANNER • VisionlinkIA</div>
+
           <p className="v-camera-sub">
-            Aponte a câmera para uma PLACA ou um NÚMERO de telefone.
-            A VisionlinkIA detecta automaticamente o tipo.
+            {mode === "phone"
+              ? "Modo especializado em leitura de números telefônicos."
+              : "Modo especializado em leitura de placas veiculares."}
           </p>
         </div>
 
         <div className="v-camera-actions">
-          <button className="v-btn-ghost" onClick={onBack}>⬅ voltar</button>
-          <div className="v-camera-chip">beta público • v1.3</div>
+          <button className="v-btn-ghost" onClick={onBack}>
+            ⬅ voltar
+          </button>
+          <div className="v-camera-chip">
+            {mode === "phone"
+              ? "scanner telefônico • v2.0"
+              : "scanner de placas • v2.0"}
+          </div>
         </div>
       </div>
 
