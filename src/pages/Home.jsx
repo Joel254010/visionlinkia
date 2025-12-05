@@ -16,9 +16,9 @@ export default function Home({
   const [plateValue, setPlateValue] = useState("");
   const [plateOpen, setPlateOpen] = useState(false);
 
-  // ===== CARD PREMIUM DINÂMICO =====
+  // ===== CARD PREMIUM =====
   const [activeMode, setActiveMode] = useState(null); 
-  // valores possíveis: "phone" | "plate" | null
+  // valores: "phone" | "plate" | null
 
   // ======================================================
   // 📌 DETECÇÃO DE PLACA
@@ -56,13 +56,12 @@ export default function Home({
 
     setNumber(raw);
     setPhoneStatus("pronto para conectar");
-
     setWhatsLink(`https://wa.me/${finalDigits}`);
     setActiveMode("phone");
   }, [detectedNumber]);
 
   // ======================================================
-  // 📌 CARD PREMIUM – SUPER ESTILIZADO
+  // 📌 CARD PREMIUM — TELEFONE / PLACA
   // ======================================================
   const renderDynamicCard = () => {
     if (!activeMode) return null;
@@ -75,11 +74,13 @@ export default function Home({
           <div className="v-scanner-grid" />
           <div className="v-scanner-line" />
 
-          {/* === TELEFONE === */}
+          {/* ----------------- TELEFONE ----------------- */}
           {activeMode === "phone" && (
             <div className="v-premium-inner">
               <div className="v-premium-number">{number}</div>
-              <div className="v-premium-tag">número detectado • {phoneStatus}</div>
+              <div className="v-premium-tag">
+                número detectado • {phoneStatus}
+              </div>
 
               <div className="v-premium-footer">
                 <div className="v-status">
@@ -103,7 +104,7 @@ export default function Home({
             </div>
           )}
 
-          {/* === PLACA === */}
+          {/* ----------------- PLACA ----------------- */}
           {activeMode === "plate" && (
             <div className="v-premium-inner">
               <div className="v-premium-number">{plateValue}</div>
@@ -152,7 +153,9 @@ export default function Home({
               </span>
             </h1>
 
-            <h2 className="v-hero-headline">Câmera inteligente VisionlinkIA</h2>
+            <h2 className="v-hero-headline">
+              Câmera inteligente VisionlinkIA
+            </h2>
           </div>
 
           <p className="v-hero-description">
@@ -160,6 +163,7 @@ export default function Home({
             <strong>telefone</strong> ou <strong>placa veicular</strong>.
           </p>
 
+          {/* BOTÕES AJUSTADOS E FUNCIONAIS */}
           <div className="v-hero-actions">
             <button className="v-btn-primary" onClick={onStartScanPhone}>
               📞 Ler número de telefone
@@ -170,6 +174,7 @@ export default function Home({
             </button>
           </div>
 
+          {/* BADGES */}
           <div className="v-badge-strip">
             <div className="v-badge-chip">OCR neural inteligente</div>
             <div className="v-badge-chip">Precisão aprimorada</div>
@@ -181,7 +186,7 @@ export default function Home({
         {/* CARD PREMIUM */}
         {renderDynamicCard()}
 
-        {/* SEÇÕES INFORMATIVAS (inalteradas) */}
+        {/* SEÇÕES INFORMATIVAS */}
         <section className="v-extra-section">
           <div className="v-extra-title">Leitura inteligente de números</div>
           <div className="v-extra-grid">
@@ -189,10 +194,12 @@ export default function Home({
               <h3>📲 Reconhecimento avançado</h3>
               <p>Extrai números até em ambientes desfavoráveis.</p>
             </div>
+
             <div className="v-extra-card">
               <h3>🌍 Compatível com DDI</h3>
               <p>De +1 a +81, telefonia global.</p>
             </div>
+
             <div className="v-extra-card">
               <h3>⚡ Conexão instantânea</h3>
               <p>Um toque e você fala no WhatsApp.</p>
@@ -202,6 +209,7 @@ export default function Home({
 
         <section className="v-extra-section-alt">
           <div className="v-extra-title">Leitura especializada de placas</div>
+
           <div className="v-applications-grid">
             <div className="v-app-card"><h3>🚗 Mercosul</h3></div>
             <div className="v-app-card"><h3>🚘 Antigas</h3></div>
@@ -212,7 +220,10 @@ export default function Home({
 
         {/* CARD DE PLACA */}
         {plateOpen && (
-          <PlateCard plate={plateValue} onClose={() => setPlateOpen(false)} />
+          <PlateCard
+            plate={plateValue}
+            onClose={() => setPlateOpen(false)}
+          />
         )}
       </div>
     </main>
